@@ -115,6 +115,7 @@ button{
     justify-content: center;
     border-radius: 8px;
     z-index: 10;
+    cursor: pointer;
     user-select: none;
 }
 
@@ -127,6 +128,7 @@ button{
     font-size: 52px;
     font-weight: bold;
     text-shadow: 0 4px 15px rgba(0,0,0,0.6);
+    pointer-events: none; /* 让点击事件穿透到遮罩本身 */
 }
 
 body.dark{
@@ -180,8 +182,8 @@ body.dark #pauseOverlay {
 
 <div id="board"></div>
 
-<div id="pauseOverlay">
-    <div class="pause-text">PAUSED</div>
+<div id="pauseOverlay" onclick="togglePause()">
+    <div class="pause-text">PAUSED<br><small style="font-size:18px;opacity:0.8;">点击继续</small></div>
 </div>
 
 <div id="message">

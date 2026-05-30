@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sudoku Pro - Kimi Ding</title>
+
+<style>
+body{
+    font-family:Arial,sans-serif;
+    background:#f2f2f2;
+    display:flex;
+    justify-content:center;
+    padding:20px;
+    transition:0.3s;
+}
+
+.container{
+    text-align:center;
+    width:100%;
+    max-width:500px;
+}
+
+h1{
+    margin-bottom:10px;
+}
+
+.controls{
+    margin-bottom:15px;
+}
+
+select,button{
+    padding:8px 12px;
+    margin:5px;
+    font-size:16px;
+    border-radius:8px;
+    border:none;
+}
+
+button{
+    background:#222;
+    color:white;
+    cursor:pointer;
+}
+
+#board{
+    display:grid;
+    grid-template-columns:repeat(9,1fr);
+    gap:0;
+    margin:auto;
+    max-width:450px;
+}
+
+.cell{
+    width:100%;
+    aspect-ratio:1;
+    text-align:center;
+    font-size:22px;
+    border:1px solid #999;
+    box-sizing:border-box;
+}
+
+.cell:focus{
+    background:#fff8cc;
+    outline:none;
+}
+
+.fixed{
+    background:#ddd;
+    font-weight:bold;
+    color:#1565c0;
+}
+
+.error{
+    background:#ffd6d6;
+}
+
+.border-right{
+    border-right:3px solid black;
+}
+
+.border-bottom{
+    border-bottom:3px solid black;
+}
+
+#message{
+    margin-top:15px;
+    font-size:24px;
+    font-weight:bold;
+    color:green;
+}
+
+.author{
+    margin-top:15px;
+    color:#666;
+    font-size:14px;
+}
+
+body.dark{
+    background:#121212;
+    color:white;
+}
+
+body.dark .cell{
+    background:#222;
+    color:white;
+}
+
+body.dark .fixed{
+    background:#333;
+    color:#4da6ff;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🧩 Sudoku Pro</h1>
+
+<div class="controls">
+
+<select id="difficulty">
+    <option value="35">简单</option>
+    <option value="45">中等</option>
+    <option value="55">困难</option>
+</select>
+
+<button onclick="newGame()">开始游戏</button>
+
+<button onclick="newGame()">重新开始</button>
+
+<button onclick="checkBoard()">检查</button>
+
+<button onclick="hint()">提示</button>
+
+<button onclick="undo()">撤销</button>
+
+<button onclick="toggleDark()">🌙</button>
+
+</div>
+
+<div style="margin-bottom:10px;font-weight:bold;">
+⏱️ <span id="timer">00:00</span>
+&nbsp;&nbsp;
+🏆 <span id="best">--</span>
+</div>
+
+<div id="board"></div>
+
+<div id="message">
+点击【开始游戏】
+</div>
+
+<div class="author">
+作者：Kimi Ding
+</div>
+
+</div>
+
+<script>
+
+const solvedBoard=[
+[5,3,4,6,7,8,9,1,2],
+[6,7,2,1,9,5,3,4,8],
+[1,9,8,3,4,2,5,6,7],
+[8,5,9,7,6,1,4,2,3],
+[4,2,6,8,5,3,7,9,1],
+[7,1,3,9,2,4,8,5,6],
+[9,6,1,5,3,7,2,8,4],
+[2,8,7,4,1,9,6,3,5],
+[3,4,5,2,8,6,1,7,9]
+];
+
+let puzzle=[];
+let history=[];
+
+let seconds=0;
+let timer;
+
+function deepCopy(arr){
+    return JSON.parse(JSON.stringify(arr));
+}
+
+function startTimer(){
+
+    clearInterval(timer);
+
+    seconds=0;
+
+    timer=setInterval(()=>{
+
+        seconds++;
+
+        let m=Math.floor(seconds/60);
+        let s=seconds%60;
+
+        document.getElementById("timer").innerHTML=
+        String(m).padStart(2,"0")+":"+
+        String(s).padStart(2,"0");
+
+    },1000);
+
+}
+
+function createPuzzle(removeCount){
+
+    puzzle=deepCopy(solvedBoard);
+
+    let removed=0;
+
+    while(removed<removeCount){
+
+        let r=Math.floor(Math.random()*9);
+        let c=Math.floor(Math.random()*9);
+
+        if(puzzle[r][c]!==0){
+            puzzle[r][c]=0;
+            removed++;
+        }
+    }
+
+    renderBoard();
+}
+
+function renderBoard(){
+
+    const board=document.getElementById("board");
+
+    board.innerHTML="";
+
+    for(let r=0;r<9;r++){
+
+        for(let c=0;c<9;c++){
+
+            const input=document.createElement("input");
+
+            input.type="text";
+            input.maxLength=1;
+
+            input.classList.add("cell");
+
+            if((c+1)%3===0 && c<8){
+                input.classList.add("border-right");
+            }
+
+            if((r+1)%3===0 && r<8){
+                input.classList.add("border-bottom");
+            }
+
+            if(puzzle[r][c]!==0){
+
+                input.value=puzzle[r][c];
+                input.readOnly=true;
+                input.classList.add("fixed");
+
+            }else{
+
+                input.addEventListener("input",()=>{
+
+                    history.push({
+                        row:r,
+                        col:c,
+                        old:puzzle[r][c]
+                    });
+
+                    input.value=
+                    input.value.replace(/[^1-9]/g,"");
+
+                    puzzle[r][c]=
+                    parseInt(input.value)||0;
+
+                    if(
+                        puzzle[r][c] &&
+                        puzzle[r][c]!==solvedBoard[r][c]
+                    ){
+                        input.classList.add("error");
+                    }else{
+                        input.classList.remove("error");
+                    }
+
+                    checkWin();
+
+                });
+
+            }
+
+            board.appendChild(input);
+        }
+    }
+
+}
+
+function checkWin(){
+
+    for(let r=0;r<9;r++){
+        for(let c=0;c<9;c++){
+
+            if(
+                puzzle[r][c]!==solvedBoard[r][c]
+            ){
+                return;
+            }
+
+        }
+    }
+
+    clearInterval(timer);
+
+    document.getElementById("message").innerHTML=
+    "🎉 YOU WIN!";
+
+    saveBest();
+
+}
+
+function checkBoard(){
+
+    const errors=
+    document.querySelectorAll(".error");
+
+    if(errors.length){
+
+        alert("还有错误哦！");
+
+    }else{
+
+        alert("当前填写正确");
+
+    }
+
+}
+
+function hint(){
+
+    let empty=[];
+
+    for(let r=0;r<9;r++){
+
+        for(let c=0;c<9;c++){
+
+            if(puzzle[r][c]===0){
+
+                empty.push([r,c]);
+
+            }
+
+        }
+
+    }
+
+    if(empty.length===0) return;
+
+    let pick=
+    empty[Math.floor(Math.random()*empty.length)];
+
+    puzzle[pick[0]][pick[1]]=
+    solvedBoard[pick[0]][pick[1]];
+
+    renderBoard();
+
+}
+
+function undo(){
+
+    if(history.length===0) return;
+
+    let last=history.pop();
+
+    puzzle[last.row][last.col]=last.old;
+
+    renderBoard();
+
+}
+
+function saveBest(){
+
+    let best=
+    localStorage.getItem("sudokuBest");
+
+    if(
+        !best ||
+        seconds<parseInt(best)
+    ){
+
+        localStorage.setItem(
+            "sudokuBest",
+            seconds
+        );
+
+    }
+
+    loadBest();
+
+}
+
+function loadBest(){
+
+    let best=
+    localStorage.getItem("sudokuBest");
+
+    if(!best) return;
+
+    best=parseInt(best);
+
+    let m=Math.floor(best/60);
+    let s=best%60;
+
+    document.getElementById("best").innerHTML=
+    String(m).padStart(2,"0")+":"+
+    String(s).padStart(2,"0");
+
+}
+
+function toggleDark(){
+
+    document.body.classList.toggle("dark");
+
+}
+
+function newGame(){
+
+    history=[];
+
+    const difficulty=
+    parseInt(
+        document.getElementById("difficulty").value
+    );
+
+    createPuzzle(difficulty);
+
+    startTimer();
+
+    document.getElementById("message").innerHTML="";
+
+}
+
+loadBest();
+
+</script>
+
+</body>
+</html>
